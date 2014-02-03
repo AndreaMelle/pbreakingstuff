@@ -7,67 +7,66 @@ class DelaBlob implements ControlListener {
 
   PApplet that;
 
-  int depthMin;
-  int depthMax;
-  int padL;
-  int padR;
-
-  int depthW, depthH, rgbW, rgbH;
-  int[] depthMap;
-  PVector[] realWorldMap;
-  PImage rgbImg;
-  PImage depthImg;
-
-  int[] depthMask;
-
-  ArrayList triangles;
-  ArrayList trianglesRaw;
-  ArrayList points;
-  ArrayList <Color> colors;
+  // params
+  int depthMin, depthMax;
+  int padL, padR;
   int pointSkip;
+  int polyApprox;
 
-  PImage depthMaskSrc;
+  // image processing
+  int depthW, depthH, rgbW, rgbH;
+  int[] depthMap, depthMask;
+  PVector[] realWorldMap;
+  PImage rgbImg, depthImg, depthMaskSrc;
   OpenCV opencv;
   ArrayList <Contour> contours;
   ArrayList <PVector> polygon;
   Contour maxContour;
   float maxArea = 0;
-  //PGraphics buffer; // offscreen buffer for contour drawing
-  //PImage contourMask;
+  int filterSize;
+  boolean hasBlob;
 
+  // geometry
+  float zoomF;
+  PVector pos;
+  ArrayList triangles, trianglesRaw, points;
+
+  // rendering
+  ArrayList <Color> colors;
+
+  // physics proxy
   ArrayList <PVector> polyProxy;
+  AABB bbox;
 
-  DelaBlob(PApplet pa) {
-    pointSkip = 5;
+  DelaBlob(PApplet pa, PVector pos, int pointSkip, int polyApprox) {
+    this.pointSkip = pointSkip;
+    this.polyApprox = polyApprox;
     this.that = pa;
+    this.pos = pos;
     depthMin = 100;
     depthMax = 1800;
     padL = 50;
     padR = 600;
+    zoomF = 0.25f;
+    filterSize = 5;
+    hasBlob = false;
+    triangles = new ArrayList();
+    trianglesRaw = new ArrayList();
+    points = new ArrayList();
+    colors = new ArrayList <Color> ();
+    polyProxy = new ArrayList <PVector> ();
+    bbox = new AABB();
   }
 
   void init() {
-
-    hud.addDepthRangeListener(this);
-    hud.setDepthDefault(this.depthMin, this.depthMax);
-
-    hud.addHPadRangeListener(this);
-    hud.setHPadDefault(this.padL, this.padR);
-
     depthW = context.depthWidth();
     depthH = context.depthHeight();
     rgbW = context.rgbWidth();
     rgbH =  context.rgbHeight();
     depthMask = new int[depthW * depthH];
-    triangles = new ArrayList();
-    trianglesRaw = new ArrayList();
-    points = new ArrayList();
-    colors = new ArrayList <Color> ();
     opencv = new OpenCV(that, depthW, depthH);
     depthMaskSrc = createImage(depthW, depthH, GRAYSCALE);
-    //buffer = createGraphics(depthW, depthH, P2D);
-    //contourMask = createImage(depthW, depthH, RGB);
-    polyProxy = new ArrayList <PVector> ();
+    initHud();
   }
 
   void update() {
@@ -76,6 +75,7 @@ class DelaBlob implements ControlListener {
     triangles.clear();
     colors.clear();
     polyProxy.clear();
+    hasBlob = false;
 
     depthMap = context.depthMap();
     depthImg = context.depthImage();
@@ -120,6 +120,8 @@ class DelaBlob implements ControlListener {
     if (contours.size() <= 0) {
       return;
     }
+    
+    hasBlob = true;
 
     maxArea = 0;
 
@@ -131,10 +133,12 @@ class DelaBlob implements ControlListener {
       }
     }
 
-    maxContour.setPolygonApproximationFactor(3);
+    maxContour.setPolygonApproximationFactor(polyApprox);
     polygon = maxContour.getPolygonApproximation().getPoints();
 
-    int filterSize = 5;
+    // Compute polygonal proxy and bbox
+    PVector minSpan = new PVector(10000, 10000, 10000);
+    PVector maxSpan = new PVector(0, 0, 0);
 
     for (PVector p : polygon) {
 
@@ -159,8 +163,25 @@ class DelaBlob implements ControlListener {
       }
 
       pAvg.div(n);
+
+      pAvg.add(0, 0, pos.z);
+      pAvg.mult(zoomF);
+      pAvg.y = -pAvg.y;
+      pAvg.z = -pAvg.z;
+      pAvg.add(pos.x, pos.y, 0);
+
+      updateBBox(pAvg, minSpan, maxSpan);
+
       polyProxy.add(pAvg);
     }
+
+    // finalize bbox
+    //PVector center = PVector.add(minSpan, maxSpan);
+    //center.div(2);
+    //PVector extent = PVector.sub(maxSpan, minSpan);
+    //extent.div(2);
+    //bbox = new AABB(Vec3D(center.x, center.y, center.z), Vec3D(extent.x, extent.y, extent.z));
+    bbox = AABB.fromMinMax(new Vec3D(minSpan.x, minSpan.y, minSpan.z), new Vec3D(maxSpan.x, maxSpan.y, maxSpan.z));
 
     trianglesRaw = Triangulate.triangulate(points);
 
@@ -187,35 +208,65 @@ class DelaBlob implements ControlListener {
 
   void displayMesh() {
     pushMatrix();
-    
-    
-    
-    stroke(0, 40);
+
+    translate(pos.x, pos.y, 0);
+    rotateX(radians(180));
+    scale(zoomF);
+    translate(0, 0, pos.z);
+
+    strokeWeight(1 / zoomF);
 
     beginShape(TRIANGLES);
     for (int i = 0; i < triangles.size(); i++) {
       Triangle t = (Triangle)triangles.get(i);
-      fill(colors.get(i).get());
+      //fill(colors.get(i).get());
       vertex(t.p1.x, t.p1.y, t.p1.z);
       vertex(t.p2.x, t.p2.y, t.p2.z);
       vertex(t.p3.x, t.p3.y, t.p3.z);
     }
     endShape();
 
-    noStroke();
     popMatrix();
+
+    //displayProxy();
+    //displayBBox();
   }
 
   void displayProxy() {
-    pushMatrix();
     stroke(255, 0, 0);
     strokeWeight(5);
-
     for (PVector p : polyProxy) {
       point(p.x, p.y, p.z);
     }
+  }
 
-    popMatrix();
+  void displayBBox() {
+    stroke(0, 255, 0);
+    strokeWeight(1);
+    noFill();
+    Mesh3D bboxMesh = bbox.toMesh();
+
+    beginShape(TRIANGLES);
+    for (Face f : bboxMesh.getFaces()) {
+      Vertex[] vertices = new Vertex[3];
+      f.getVertices(vertices);
+      for (int i = 0; i < vertices.length; i++) {
+        Vertex v = vertices[i];
+        vertex(v.x, v.y, v.z);
+      }
+    }
+    endShape();
+  }
+
+  void displayContour() {
+    noFill();
+    strokeWeight(4);
+    stroke(255, 0, 0);
+    beginShape();
+    for (PVector point : polygon) {
+      vertex(point.x, point.y);
+    }
+    endShape();
   }
 
   // returns a small version of the valid depth mask  
@@ -227,16 +278,47 @@ class DelaBlob implements ControlListener {
     return polyProxy;
   }
 
-  void displayContour() {
-    noFill();
-    strokeWeight(4);
-    //maxContour.draw();
-    stroke(255, 0, 0);
-    beginShape();
-    for (PVector point : polygon) {
-      vertex(point.x, point.y);
+  AABB getBBox() {
+    return bbox;
+  }
+
+  void updateBBox(PVector p, PVector minSpan, PVector maxSpan) {
+    if (p.x < minSpan.x) {
+      minSpan.x = p.x;
     }
-    endShape();
+
+    if (p.x > maxSpan.x) {
+      maxSpan.x = p.x;
+    }
+
+    if (p.y < minSpan.y) {
+      minSpan.y = p.y;
+    }
+
+    if (p.y > maxSpan.y) {
+      maxSpan.y = p.y;
+    }
+
+    if (p.z < minSpan.z) {
+      minSpan.z = p.z;
+    }
+
+    if (p.z > maxSpan.z) {
+      maxSpan.z = p.z;
+    }
+  }
+
+  /*
+   * HUD related
+   */
+
+  void initHud() {
+    hud.addDepthRangeListener(this);
+    hud.setDepthDefault(this.depthMin, this.depthMax);
+    hud.addHPadRangeListener(this);
+    hud.setHPadDefault(this.padL, this.padR);
+    hud.addZSliderListener(this);
+    hud.setZSliderDefault(pos.z);
   }
 
   public void controlEvent(ControlEvent event) {
@@ -247,9 +329,10 @@ class DelaBlob implements ControlListener {
     else if (event.isFrom("hpad")) {
       padL = int(event.getController().getArrayValue(0));
       padR = int(event.getController().getArrayValue(1));
+    } 
+    else if (event.isFrom("z")) {
+      pos.z = int(event.getController().getValue());
     }
   }
-
-  // TODO: getters and setters
 }
 

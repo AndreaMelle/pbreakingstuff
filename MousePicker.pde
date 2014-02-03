@@ -6,8 +6,12 @@ class MousePicker {
   PVector h, v;
   PVector mouse;
   PVector mouseRay, mouseRayOrigin;
+  boolean enabled;
 
   MousePicker() {
+    enabled = true;
+    mouseRay = new PVector(0,0,0);
+    mouseRayOrigin = new PVector(0,0,0);
   }
 
   void init(PVector camLookAt, PVector camPos, PVector camUp, float fovy, float aspect, float zNear) {
@@ -37,6 +41,10 @@ class MousePicker {
 
   void update() {
 
+    if (!enabled) {
+      return;
+    }
+
     this.mouse = new PVector(mouseX, mouseY);
 
     this.mouse.sub(new PVector(width/2.0f, height/2.0f));
@@ -50,12 +58,36 @@ class MousePicker {
     this.mouseRay = PVector.sub(this.mouseRayOrigin, this.camPos);
   }
 
+  void display () {
+
+    if (!enabled) {
+      return;
+    }
+
+    stroke(255, 0, 0);
+    strokeWeight(1);
+
+    PVector start = mouseRayOrigin;
+    PVector end = PVector.add(start, PVector.mult(mouseRay, 100.0));
+    line(start.x-0.01, start.y-0.01, start.z, end.x, end.y, end.z);
+
+    noStroke();
+  }
+
   PVector getOrigin() {
     return mouseRayOrigin;
   }
 
   PVector getRay() {
     return mouseRay;
+  }
+
+  void disable() {
+    this.enabled = false;
+  }
+
+  void enable() {
+    this.enabled = true;
   }
 }
 

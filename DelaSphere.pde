@@ -109,22 +109,18 @@ class DelaSphere {
     }
 
     pushMatrix();
+    
     translate(this.pos.x, this.pos.y, this.pos.z);
     scale(this.radius);
-    //stroke(255, 255, 255);
-    //strokeWeight(0.01);
+    
+    strokeWeight(1 / this.radius);
 
     beginShape(TRIANGLES);
-    noStroke();
-    fill(0);
 
     float r = (float)(red(fill)) / 255.0;
     float g = (float)(green(fill)) / 255.0;
     float b = (float)(blue(fill)) / 255.0;
-    resetShader();
-    gShader.set("ambientMat", r, g, b, (float)this.transparency / 255.0);
-    gShader.set("diffuseMat", r, g, b, (float)this.transparency / 255.0);
-    shader(gShader);
+    
 
     for (int i = 0; i < faces.size(); i++) {
       PVector[] f = faces.get(i);
@@ -152,7 +148,7 @@ class DelaSphere {
 
   void checkBreak() {
     // collision with ray check!
-    if (mousePressed) {
+    if (mousePressed && mousePicker.enabled) {
       PVector rp = PVector.sub(mousePicker.getOrigin(), pos);
       PVector mouseRay = mousePicker.getRay();
       Ray3D ray = new Ray3D(new Vec3D(rp.x, rp.y, rp.z), new Vec3D(mouseRay.x, mouseRay.y, mouseRay.z)); 
@@ -164,7 +160,10 @@ class DelaSphere {
 
   void checkCollision(PVector p) {
     // collision with a point
-    if (proxy.containsPoint(new Vec3D(p.x, p.y, p.z))) {
+    
+    PVector p2 = PVector.sub(p, pos);
+    
+    if (proxy.containsPoint(new Vec3D(p2.x, p2.y, p2.z))) {
       this.explode();
     }
   }

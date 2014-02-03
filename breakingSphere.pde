@@ -1,6 +1,7 @@
 import quickhull3d.*;
 import toxi.color.*;
 import toxi.geom.*;
+import toxi.geom.mesh.*;
 import toxi.util.datatypes.*;
 import toxi.physics.*;
 import toxi.physics.behaviors.*;
@@ -14,7 +15,7 @@ int GRAYSCALE = ALPHA;
 float minSpeed = 0.1;
 float maxSpeed = 1.0;
 
-int numRocks = 10;
+int numRocks = 20;
 ArrayList <DelaSphere> rocks;
 PShader gShader;
 VerletPhysics physics;
@@ -34,11 +35,11 @@ SimpleOpenNI  context;
 boolean live;
 String recordPath;
 
-float rotX = radians(180);  // by default rotate the hole scene 180deg around the x-axis, the data from openni comes upside down
-float rotY = radians(0);
-float zoomF = 0.25f;
-
 DelaBlob delaBlob;
+
+int rockRes = 10; //50
+int pointSkip = 10; //5
+int polyApprox = 7; //3
 
 void setup() {
   size(800, 600, P3D);
@@ -60,6 +61,7 @@ void setup() {
 
   mousePicker = new MousePicker();
   mousePicker.init(camLookAt, camPos, camUp, fovy, aspect, zNear);
+  mousePicker.disable();
 
   physics = new VerletPhysics();
   physics.setDrag(0.05f);
@@ -73,14 +75,7 @@ void setup() {
   gShader.set("specPow", 0.0);
 
   rocks = new ArrayList <DelaSphere>();
-  delaBlob = new DelaBlob(this);
-
-  for (int i = 0; i < numRocks; i++) {
-    float radius = random(10.0f, 50.0f);
-    PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
-    rocks.add(new DelaSphere(center, radius, 50));
-    //rocks.add(new DelaSphere(new PVector(width/2,height/2,0), 25, 50));
-  }
+  delaBlob = new DelaBlob(this, new PVector(width/2, height/2, -1450), pointSkip, polyApprox);
 
   initKinect();
   delaBlob.init();
@@ -94,6 +89,13 @@ void draw() {
   camera(camPos.x, camPos.y, camPos.z, camLookAt.x, camLookAt.y, camLookAt.z, camUp.x, camUp.y, camUp.z);
 
   background(0);
+  stroke(0, 40);
+  fill(255);
+  resetShader();
+  float w = 180.0/255.0;
+  gShader.set("ambientMat", w, w, w, 1.0);
+  gShader.set("diffuseMat", w, w, w, 1.0);
+  shader(gShader);
 
   pointLight(180, 180, 180, 2*(width/2), 2*(height/2), 500);
 
@@ -101,30 +103,8 @@ void draw() {
     s.display();
   }
 
-  pushMatrix();
-  
-  translate(width/2, height/2, 0);
-  rotateX(rotX);
-  rotateY(rotY);
-  scale(zoomF);
-  translate(0, 0, -1000);
-  
-  noLights();
-  resetShader();
-
   delaBlob.displayMesh();
-  delaBlob.displayProxy();
-
-  stroke(255, 0, 0);
-  strokeWeight(1);
-
-  PVector start = mousePicker.getOrigin();
-  PVector end = PVector.add(start, PVector.mult(mousePicker.getRay(), 100.0));
-  line(start.x-0.01, start.y-0.01, start.z, end.x, end.y, end.z);
-
-  noStroke();
-
-  popMatrix();
+  mousePicker.display();
 
   popMatrix();
 
@@ -132,15 +112,20 @@ void draw() {
 }
 
 void update() {
+  addRock();
   mousePicker.update();
   physics.update();
 
   for (DelaSphere s : rocks) {
     s.update();
     if (s.dead) {
+      AABB bbox = delaBlob.getBBox();
       float radius = random(10.0f, 50.0f);
-      //PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
-      PVector center = new PVector(width/2, height/2, 0);
+      PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+
+      while (bbox.containsPoint (new Vec3D (center.x, center.y, center.z))) {
+        center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+      }
       s.reset(center, radius);
     }
   }
@@ -159,6 +144,21 @@ void update() {
     for (DelaSphere s : rocks) {
       s.checkCollision(p);
     }
+  }
+}
+
+void addRock() {
+  if (delaBlob.hasBlob && rocks.size() < numRocks) {
+    AABB bbox = delaBlob.getBBox();
+    float radius = random(10.0f, 50.0f);
+    PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+
+    while (bbox.containsPoint (new Vec3D (center.x, center.y, center.z))) {
+      center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+    }
+
+    rocks.add(new DelaSphere(center, radius, rockRes));
+    //rocks.add(new DelaSphere(new PVector(width/2,height/2,0), 25, 50));
   }
 }
 
