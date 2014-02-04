@@ -9,7 +9,7 @@ class DelaBlob implements ControlListener {
 
   // params
   int depthMin, depthMax;
-  int padL, padR;
+  int padL, padR, padT, padB;
   int pointSkip;
   int polyApprox;
 
@@ -47,6 +47,8 @@ class DelaBlob implements ControlListener {
     depthMax = 1800;
     padL = 50;
     padR = 600;
+    padT = 0;
+    padB = 479;
     zoomF = 0.25f;
     filterSize = 5;
     hasBlob = false;
@@ -88,7 +90,7 @@ class DelaBlob implements ControlListener {
         int idx = x + y * depthW;
         depthMask[idx] = 0;
 
-        if ( !(x > padL) || !(x < padR) ) {
+        if ( !(x > padL && x < padR && y > padT && y < padB) ) {
           continue;
         }
 
@@ -120,7 +122,7 @@ class DelaBlob implements ControlListener {
     if (contours.size() <= 0) {
       return;
     }
-    
+
     hasBlob = true;
 
     maxArea = 0;
@@ -166,8 +168,8 @@ class DelaBlob implements ControlListener {
 
       pAvg.add(0, 0, pos.z);
       pAvg.mult(zoomF);
-      pAvg.y = -pAvg.y;
-      pAvg.z = -pAvg.z;
+      //pAvg.y = -pAvg.y;
+      //pAvg.z = -pAvg.z;
       pAvg.add(pos.x, pos.y, 0);
 
       updateBBox(pAvg, minSpan, maxSpan);
@@ -210,7 +212,7 @@ class DelaBlob implements ControlListener {
     pushMatrix();
 
     translate(pos.x, pos.y, 0);
-    rotateX(radians(180));
+    //rotateX(radians(180));
     scale(zoomF);
     translate(0, 0, pos.z);
 
@@ -228,8 +230,8 @@ class DelaBlob implements ControlListener {
 
     popMatrix();
 
-    //displayProxy();
-    //displayBBox();
+    displayProxy();
+    displayBBox();
   }
 
   void displayProxy() {
@@ -315,10 +317,10 @@ class DelaBlob implements ControlListener {
   void initHud() {
     hud.addDepthRangeListener(this);
     hud.setDepthDefault(this.depthMin, this.depthMax);
-    hud.addHPadRangeListener(this);
-    hud.setHPadDefault(this.padL, this.padR);
-    hud.addZSliderListener(this);
-    hud.setZSliderDefault(pos.z);
+    hud.addPadRangeListener(this);
+    hud.setPadDefault(this.padL, this.padR, this.padT, this.padB);
+    hud.addSlidersListener(this);
+    hud.setSlidersDefault(pos.x, pos.y, pos.z);
   }
 
   public void controlEvent(ControlEvent event) {
@@ -330,6 +332,16 @@ class DelaBlob implements ControlListener {
       padL = int(event.getController().getArrayValue(0));
       padR = int(event.getController().getArrayValue(1));
     } 
+    else if (event.isFrom("vpad")) {
+      padT = int(event.getController().getArrayValue(0));
+      padB = int(event.getController().getArrayValue(1));
+    }
+    else if (event.isFrom("x")) {
+      pos.x = int(event.getController().getValue());
+    }
+    else if (event.isFrom("y")) {
+      pos.y = int(event.getController().getValue());
+    }
     else if (event.isFrom("z")) {
       pos.z = int(event.getController().getValue());
     }

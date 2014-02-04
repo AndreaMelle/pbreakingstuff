@@ -12,52 +12,71 @@ import SimpleOpenNI.*;
 
 int GRAYSCALE = ALPHA;
 
-float minSpeed = 0.1;
-float maxSpeed = 1.0;
+SimpleOpenNI  context;
+boolean live;
+String recordPath;
 
-int numRocks = 20;
-ArrayList <DelaSphere> rocks;
+// graphics settings
 PShader gShader;
-VerletPhysics physics;
 ColorList palette;
 int numCols;
-
 PVector camLookAt;
 PVector camPos;
 PVector camUp;
 float fovy, aspect, zNear, zFar;
 
+// graphics objetcs
 HUD hud;
-
+Axis axis;
 MousePicker mousePicker;
-
-SimpleOpenNI  context;
-boolean live;
-String recordPath;
-
+ArrayList <DelaSphere> rocks;
 DelaBlob delaBlob;
+Floor floor;
+Billboard back;
+SpikyFloor spikes;
 
+// physics
+VerletPhysics physics;
+float worldRatio;
+int worldW;
+int worldH;
+int worldD;
+AABB worldBox;
+PVector lightPos;
+
+// performance settings
 int rockRes = 10; //50
 int pointSkip = 10; //5
 int polyApprox = 7; //3
+int numRocks = 0; //20;
 
 void setup() {
   size(800, 600, P3D);
   //smooth();
 
   live = false;
-  recordPath = "rec_01.oni";
+  recordPath = "rec_02.oni";
 
-  hud = new HUD(this);
+  worldRatio = 9.0f / 16.0f;
+  worldW = 1600;
+  worldH = (int)(worldW * worldRatio);
+  worldD = (int)(worldW * worldRatio);
+  worldBox = new AABB(new Vec3D(0, worldH/2, 0), new Vec3D(worldW/2, worldH/2, worldD/2));
+  lightPos = new PVector(0, worldH, -worldD/2);
 
-  camLookAt = new PVector(width/2.0, height/2.0, 0);
-  camPos = new PVector(width/2.0, height/2.0, (height/2.0) / tan(PI*30.0 / 180.0));
+  camLookAt = new PVector(width/2, height/2, 0);
+  camPos = new PVector(width/2, -height, (height/2.0) / tan(PI*30.0 / 180.0) + 1500);
   camUp = new PVector(0, 1, 0);
-
   fovy = PI/3.0;
   aspect = (float) width / height;
   zNear = 0.1;
   zFar = 1000000;
+
+  gShader = loadShader("frag.glsl", "vert.glsl");
+  generateColors(160);
+
+  hud = new HUD(this);
+  axis = new Axis(200);
 
   mousePicker = new MousePicker();
   mousePicker.init(camLookAt, camPos, camUp, fovy, aspect, zNear);
@@ -65,39 +84,52 @@ void setup() {
 
   physics = new VerletPhysics();
   physics.setDrag(0.05f);
-  physics.setWorldBounds(new AABB(new Vec3D(width/2, height/2, 0), new Vec3D(width/2, height/2, 200)));
-
-  generateColors(160);
-
-  gShader = loadShader("frag.glsl", "vert.glsl");
-
-  gShader.set("specMat", 1.0, 1.0, 1.0, 1.0);
-  gShader.set("specPow", 0.0);
+  physics.setWorldBounds(worldBox);
 
   rocks = new ArrayList <DelaSphere>();
-  delaBlob = new DelaBlob(this, new PVector(width/2, height/2, -1450), pointSkip, polyApprox);
+
+  for (int i = 0; i < numRocks; i++) {
+    rocks.add(new DelaSphere(rockRes));
+  }
+
+  floor = new Floor(worldW, worldD, 20, new PVector(0, 0, 0));
+  back = new Billboard(new PVector(0, worldH/2, worldD/2), worldW, worldH );
+  spikes = new SpikyFloor(new PVector(0, 0, 0),  new PVector(worldW, worldH / 8, worldD), 16, 9);
+
+  delaBlob = new DelaBlob(this, new PVector(0, 0, 0), pointSkip, polyApprox);
 
   initKinect();
   delaBlob.init();
+  hud.load();
 }
 
 void draw() {
   update();
 
-  pushMatrix();
+  // camera is not affected by transformation stack
   perspective(fovy, aspect, zNear, zFar);
   camera(camPos.x, camPos.y, camPos.z, camLookAt.x, camLookAt.y, camLookAt.z, camUp.x, camUp.y, camUp.z);
+
+  pushMatrix();
+  translate(width/2, height/2, 0);
+  scale(1.0, -1.0, -1.0);
 
   background(0);
   stroke(0, 40);
   fill(255);
   resetShader();
+  back.display();
   float w = 180.0/255.0;
   gShader.set("ambientMat", w, w, w, 1.0);
   gShader.set("diffuseMat", w, w, w, 1.0);
+  gShader.set("specMat", 1.0, 1.0, 1.0, 1.0);
+  gShader.set("specPow", 0.0);
   shader(gShader);
 
-  pointLight(180, 180, 180, 2*(width/2), 2*(height/2), 500);
+  pointLight(200, 200, 200, lightPos.x, lightPos.y, lightPos.z);
+
+  floor.display();
+  spikes.display();
 
   for (DelaSphere s : rocks) {
     s.display();
@@ -105,6 +137,12 @@ void draw() {
 
   delaBlob.displayMesh();
   mousePicker.display();
+  axis.display();
+
+  noFill();
+  strokeWeight(10);
+  stroke(255, 255, 0);
+  point(lightPos.x, lightPos.y, lightPos.z);
 
   popMatrix();
 
@@ -112,53 +150,50 @@ void draw() {
 }
 
 void update() {
-  addRock();
-  mousePicker.update();
-  physics.update();
-
-  for (DelaSphere s : rocks) {
-    s.update();
-    if (s.dead) {
-      AABB bbox = delaBlob.getBBox();
-      float radius = random(10.0f, 50.0f);
-      PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
-
-      while (bbox.containsPoint (new Vec3D (center.x, center.y, center.z))) {
-        center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
-      }
-      s.reset(center, radius);
-    }
-  }
-
   context.update();
   if ((context.nodes() & SimpleOpenNI.NODE_DEPTH) == 0 || (context.nodes() & SimpleOpenNI.NODE_IMAGE) == 0)
   {
     println("No frame.");
     return;
   }
-  delaBlob.update();
 
+  delaBlob.update();
   ArrayList <PVector> pproxy = delaBlob.getPolyProxy();
 
-  for (PVector p : pproxy) {
-    for (DelaSphere s : rocks) {
-      s.checkCollision(p);
+  mousePicker.update();
+  physics.update();
+
+  for (DelaSphere s : rocks) {
+    if (s.dead) {
+      spanRock(s);
+    } 
+    else {
+      s.update();
+      for (PVector p : pproxy) {
+        s.checkCollision(p);
+      }
     }
   }
 }
 
-void addRock() {
-  if (delaBlob.hasBlob && rocks.size() < numRocks) {
+void spanRock(DelaSphere r) {
+  if (delaBlob.hasBlob) {
     AABB bbox = delaBlob.getBBox();
-    float radius = random(10.0f, 50.0f);
-    PVector center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+    float minRockRadius = 20.0f;
+    float maxRockRadius = 80.0f;
+    float radius = random(minRockRadius, maxRockRadius);
+
+    float xMax = worldW/2 - radius;
+    float yMin = radius;
+    float yMax = worldH - radius;
+    float zMax = worldD/2 - radius;
+
+    PVector center = new PVector(random(-xMax, xMax), random(yMin, yMax), random(-zMax, zMax));
 
     while (bbox.containsPoint (new Vec3D (center.x, center.y, center.z))) {
-      center = new PVector(random(radius, width - radius), random(radius, height - radius), random(-100, +100));
+      center = new PVector(random(-xMax, xMax), random(yMin, yMax), random(-zMax, zMax));
     }
-
-    rocks.add(new DelaSphere(center, radius, rockRes));
-    //rocks.add(new DelaSphere(new PVector(width/2,height/2,0), 25, 50));
+    r.set(center, radius);
   }
 }
 
@@ -166,6 +201,13 @@ void keyPressed() {
   //if (key == ' ') { 
   //rocks.get((int)random(0, rocks.size())).explode();
   //}
+
+  if (key=='1') {
+    hud.save();
+  } 
+  else if (key=='2') {
+    hud.load();
+  }
 }
 
 void initKinect() {

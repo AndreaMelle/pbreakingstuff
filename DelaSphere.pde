@@ -25,17 +25,19 @@ class DelaSphere {
   PVector pos;
   boolean broken;
   float[] speed;
+  float minSpeed = 0.1;
+  float maxSpeed = 1.0;
   int transparency;
   int start;
   color fill;
   boolean dead;
 
-  DelaSphere (PVector pos, float radius, int numPoints) {
+  DelaSphere (int numPoints) {
     this.numPoints = numPoints;
-    this.reset(pos, radius);
+    this.dead = true;
   }
 
-  void reset(PVector pos, float radius) {
+  void set(PVector pos, float radius) {
     this.pos = pos;
     this.radius = radius;
     proxy = new Sphere(radius);
@@ -109,10 +111,10 @@ class DelaSphere {
     }
 
     pushMatrix();
-    
+
     translate(this.pos.x, this.pos.y, this.pos.z);
     scale(this.radius);
-    
+
     strokeWeight(1 / this.radius);
 
     beginShape(TRIANGLES);
@@ -120,7 +122,7 @@ class DelaSphere {
     float r = (float)(red(fill)) / 255.0;
     float g = (float)(green(fill)) / 255.0;
     float b = (float)(blue(fill)) / 255.0;
-    
+
 
     for (int i = 0; i < faces.size(); i++) {
       PVector[] f = faces.get(i);
@@ -160,9 +162,9 @@ class DelaSphere {
 
   void checkCollision(PVector p) {
     // collision with a point
-    
+
     PVector p2 = PVector.sub(p, pos);
-    
+
     if (proxy.containsPoint(new Vec3D(p2.x, p2.y, p2.z))) {
       this.explode();
     }
