@@ -10,20 +10,22 @@ class Billboard {
     this.w = w;
     this.h = h;
     
-    PImage img = loadImage("background.jpg");
+    PImage img = loadImage("background.png");
 
 
     bill = createShape();
+    
     bill.beginShape(TRIANGLES);
     bill.translate(-0.5, -0.5, -0.5);
     bill.texture(img);
+    bill.noStroke();
     bill.vertex(0, 0, 0, 0, 0);
-    bill.vertex(0, 1, 0, 0, 1200);
+    bill.vertex(0, 1, 0, 0, 1080);
     bill.vertex(1, 0, 0, 1920, 0);
     
     bill.vertex(1, 0, 0, 1920, 0);
-    bill.vertex(0, 1, 0, 0, 1200);
-    bill.vertex(1, 1, 0, 1920, 1200);
+    bill.vertex(0, 1, 0, 0, 1080);
+    bill.vertex(1, 1, 0, 1920, 1080);
     
 
     bill.endShape();

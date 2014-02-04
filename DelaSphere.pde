@@ -13,6 +13,7 @@ class DelaSphere {
   Sphere proxy;
   VerletParticle vp;
   AttractionBehavior abh;
+  GravityBehavior gbh;
 
   // these are the centers of Delaunay triangles a.k.a. vertices of Voronoi
   // for generation only
@@ -25,8 +26,8 @@ class DelaSphere {
   PVector pos;
   boolean broken;
   float[] speed;
-  float minSpeed = 0.1;
-  float maxSpeed = 1.0;
+  float minSpeed = 0.5;
+  float maxSpeed = 2.0;
   int transparency;
   int start;
   color fill;
@@ -45,7 +46,7 @@ class DelaSphere {
     vp = new VerletParticle(pos.x, pos.y, pos.z);
     //abh = new AttractionBehavior(vp, radius * 2.5 + max(0, 50 - radius), -1.2f, 0.01f);
     abh = new AttractionBehavior(vp, radius * 2.5, -1.2f, 0.01f);
-
+    gbh = new GravityBehavior(new Vec3D(random(-0.05f, 0.05f), random(-0.8f, -0.1f), random(-0.01f, 0.01f)));
 
     faces = new ArrayList <PVector[]> ();
     internal = new ArrayList <PVector> ();
@@ -64,6 +65,8 @@ class DelaSphere {
 
     physics.addParticle(vp);
     physics.addBehavior(abh);
+    physics.addBehavior(gbh);
+
 
     this.broken = false;
     this.dead = false;
@@ -170,11 +173,18 @@ class DelaSphere {
     }
   }
 
+  void checkFloor() {
+    if (this.pos.y - radius <= 0) {
+      this.explode();
+    }
+  }
+
   void explode() {
     this.broken = true;
     //this.reset();
     physics.removeParticle(vp);
     physics.removeBehavior(abh);
+    physics.removeBehavior(gbh);
     start = frameCount;
   }
 

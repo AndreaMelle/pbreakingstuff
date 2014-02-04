@@ -229,9 +229,11 @@ class DelaBlob implements ControlListener {
     endShape();
 
     popMatrix();
-
-    displayProxy();
-    displayBBox();
+    
+    if(_DEBUG) {
+      displayProxy();
+      displayBBox();
+    }
   }
 
   void displayProxy() {
@@ -320,7 +322,7 @@ class DelaBlob implements ControlListener {
     hud.addPadRangeListener(this);
     hud.setPadDefault(this.padL, this.padR, this.padT, this.padB);
     hud.addSlidersListener(this);
-    hud.setSlidersDefault(pos.x, pos.y, pos.z);
+    hud.setSlidersDefault(pos.x, pos.y, pos.z, zoomF);
   }
 
   public void controlEvent(ControlEvent event) {
@@ -344,6 +346,9 @@ class DelaBlob implements ControlListener {
     }
     else if (event.isFrom("z")) {
       pos.z = int(event.getController().getValue());
+    }
+    else if (event.isFrom("zoom")) {
+      zoomF = event.getController().getValue();
     }
   }
 }

@@ -2,42 +2,41 @@
 
 uniform vec4 ambientMat;
 uniform vec4 diffuseMat;
-uniform vec4 specMat;
-uniform float specPow;
 
-uniform mat4 modelview;
-uniform mat4 transform;
+//uniform mat4 modelview;
+uniform mat4 transformMatrix;
 uniform mat3 normalMatrix;
-uniform vec4 lightPosition;
 
-varying vec4 color;
-
-varying vec3 N;
-varying vec3 v;
-varying vec4 diffuse;
-varying vec4 spec;
+uniform vec4 lightPosition[8];
+uniform vec3 lightDiffuse[8];
+uniform vec3 lightAmbient[8];
+uniform vec3 lightNormal[8];
 
 attribute vec4 vertex;
 attribute vec3 normal;
+attribute vec4 ambient;
+
+varying vec4 color;
 
 void main()
 {
-	vec4 diffuse;
-	vec4 spec;
-	vec4 ambient;
+	vec3 n;
+	vec3 lightDir;
+	vec4 diffuse;	
+	vec4 amb;
+	
+	float NdotL;
+	
+	n = normalize(normalMatrix * normal);
+	lightDir = -1.0 * normalize(lightNormal[0]);
+	NdotL = max(dot(n, lightDir), 0.0);
+	
+	diffuse = diffuseMat * vec4(lightDiffuse[0], 1.0);
 
-   v = vec3(modelview * vertex);
-   N = normalize(normalMatrix * normal);
-   gl_Position = transform * vertex;  
-
-   vec3 L = normalize(lightPosition.xyz - v);
-   vec3 E = normalize(-v);
-   vec3 R = normalize(reflect(-L,N)); 
-
-   ambient = ambientMat;
-   diffuse = clamp( diffuseMat * max(dot(N,L), 0.0)  , 0.0, 1.0 ) ;
-   spec = clamp ( specMat * pow(max(dot(R,E),0.0),0.3*specPow) , 0.0, 1.0 );
-
-   color = ambient + diffuse; // + spec;
-
+	amb = ambient * ambientMat * vec4(lightAmbient[1], 1.0);
+	
+	color = NdotL * diffuse + amb;
+	
+	gl_Position = transformMatrix * vertex;
 }
+

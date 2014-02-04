@@ -32,8 +32,8 @@ class SpikyFloor {
         float nW = map(noise(ni), 0, 1.0, -noiseStrength/2, noiseStrength); 
         float nD = map(noise(nj), 0, 1.0, -noiseStrength/2, noiseStrength); 
         
-        float nX = map(noise(ni), 0, 1.0, -noiseStrength/2, noiseStrength/2); 
-        float nZ = map(noise(nj), 0, 1.0, -noiseStrength/2, noiseStrength/2); 
+        float nX = map(noise(2*ni), 0, 1.0, -stepX * 0.2, stepX * 0.2); 
+        float nZ = map(noise(2*ni + noiseScale/2), 0, 1.0, -stepZ * 0.2, stepZ * 0.2); 
         
         spikes.add(new Pyramid(
         new PVector(i + stepX/2 + nX, 0, j + stepZ/2 + nZ), 
